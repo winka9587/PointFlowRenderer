@@ -4,6 +4,7 @@ import numpy as np
 import mitsuba as mi
 import matplotlib.pyplot as plt
 import os
+import sys
 
 import open3d as o3d
 import numpy as np
@@ -99,13 +100,51 @@ def colormap(xyz):
     vec /= norm
     return [vec[0], vec[1], vec[2]]
 
+
+def rotate_point_cloud(point_cloud, angle_degrees, center=[0, 0, 0], axis='z'):
+    """
+    旋转点云。
+
+    参数:
+    - point_cloud: 要旋转的点云，一个 open3d.geometry.PointCloud 对象。
+    - angle_degrees: 旋转角度（以度为单位）。
+    - center: 旋转中心点的坐标，格式为 [x, y, z]。
+    - axis: 旋转轴，可以是 'x', 'y' 或 'z'。
+    """
+    # 将角度从度转换为弧度
+    angle_radians = np.radians(angle_degrees)
+    
+    # 根据选定的轴创建旋转矩阵
+    if axis == 'x':
+        R = np.array([[1, 0, 0],
+                      [0, np.cos(angle_radians), -np.sin(angle_radians)],
+                      [0, np.sin(angle_radians), np.cos(angle_radians)]])
+    elif axis == 'y':
+        R = np.array([[np.cos(angle_radians), 0, np.sin(angle_radians)],
+                      [0, 1, 0],
+                      [-np.sin(angle_radians), 0, np.cos(angle_radians)]])
+    elif axis == 'z':
+        R = np.array([[np.cos(angle_radians), -np.sin(angle_radians), 0],
+                      [np.sin(angle_radians), np.cos(angle_radians), 0],
+                      [0, 0, 1]])
+    else:
+        raise ValueError("Axis must be 'x', 'y', or 'z'.")
+    return R
+
+
 # generate_xml: 是否检查已经生成xml文件
-def run(ply_file_path, scene_path, image_path, generate_xml=False):
-    radius = 0.025 # 0.025
+def render_image(ply_file_path, scene_path, image_path, use_existed_xml=False):
+    radius = 0.02 # 0.025
     # 检查xml文件是否存在
     filename = ply_file_path.split('/')[-1].split('.')[0]
     xml_file_path = os.path.join(scene_path, "{}.xml".format(filename))
-    if os.path.exists(xml_file_path) and not generate_xml:
+    point_cloud = o3d.io.read_point_cloud(ply_file_path)
+    R = rotate_point_cloud(point_cloud, -115, center=[0, 0, 0], axis='x')
+    point_cloud.rotate(R, center=(0, 0, 0))
+    R = rotate_point_cloud(point_cloud, 90, center=[0, 0, 0], axis='z')
+    point_cloud.rotate(R, center=(0, 0, 0))
+
+    if os.path.exists(xml_file_path) and use_existed_xml:
         print("xml file {} already exists!".format(xml_file_path))
     else:
         print("xml file {} does not exist, creating...".format(xml_file_path))  
@@ -113,9 +152,6 @@ def run(ply_file_path, scene_path, image_path, generate_xml=False):
         point_radius=0.01
         xml_head, xml_ball_segment, xml_tail = configure_xml()
         # Load a PLY point cloud
-
-        point_cloud = o3d.io.read_point_cloud(ply_file_path)
-
         xyz = np.asarray(point_cloud.points)
         xyz = standardize_bbox(xyz, 2048, shuffle=False, arg_scale=1.0)
         color = np.asarray(point_cloud.colors)
@@ -128,6 +164,7 @@ def run(ply_file_path, scene_path, image_path, generate_xml=False):
         xml_segments = [xml_head.format(filename)]
         for i in range(xyz.shape[0]):
             xml_segments.append(xml_ball_segment.format(radius, xyz[i,0],xyz[i,1],xyz[i,2], color[i,0], color[i,1], color[i,2]))
+            # xml_segments.append(xml_ball_segment.format(radius, xyz[i,0],xyz[i,1],xyz[i,2], ) # 自定义rgb颜色
 
         xml_segments.append(xml_tail)
         
@@ -154,9 +191,13 @@ def run(ply_file_path, scene_path, image_path, generate_xml=False):
     mi.util.write_bitmap(image_save_to, image)
     print("save image {}".format(image_save_to))
 
-if __name__ == '__main__':
-    ply_file_path = 'vr_pcd/mug_feat1.ply'
+def run(ply_file_path):
+    # ply_file_path = 'vr_pcd/mug_feat2.ply'
+    # ply_file_path = os.path.join('vr_pcd', )
     # ply_file_path = 'vr_pcd/mug1.ply'
     scene_path = './results/scenes/'
     image_path = './results/images/'
-    run(ply_file_path, scene_path, image_path, generate_xml=True)
+    render_image(ply_file_path, scene_path, image_path, use_existed_xml=False)
+
+if __name__ == '__main__':
+    run(sys.argv[1])

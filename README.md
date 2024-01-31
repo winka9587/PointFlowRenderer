@@ -1,3 +1,8 @@
+# Anim
+
+mug_feat_corr.ply和mug_feat1.ply是对应的, 设计脚本来生成m个过渡的点云。并渲染
+
+
 # Point Cloud Renderer
 
 Instructions and scripts for rendering point cloud figures shown in **PointFlow: 3D Point Cloud Generation with Continuous Normalizing Flows**.
